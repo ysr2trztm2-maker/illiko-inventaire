@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Illiko — Inventaire</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0D0F14;
+      --surface:   #171A22;
+      --surface2:  #1E2230;
+      --border:    #272C3A;
+      --accent:    #F59E0B;
+      --accent-dim:#7C5208;
+      --text:      #E8EAF0;
+      --muted:     #5A6072;
+      --ok:        #10B981;
+      --danger:    #EF4444;
+      --radius:    14px;
+      --safe-top:  env(safe-area-inset-top, 0px);
+      --safe-bot:  env(safe-area-inset-bottom, 0px);
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; flex-direction: column; min-height: 100dvh;
+    }
+
+    /* Header */
+    #appHeader {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: calc(14px + var(--safe-top)) 18px 14px; flex-shrink: 0;
+    }
+    .header-row { display: flex; align-items: center; justify-content: space-between; }
+    .header-title { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.3px; }
+    .header-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .sync-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .sync-dot.ok  { background: var(--ok); }
+    .sync-dot.err { background: var(--danger); }
+
+    /* Tab bar */
+    #tabBar {
+      display: flex; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      height: 58px; gap: 3px; border: none; background: transparent;
+      color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+      cursor: pointer; border-bottom: 3px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tab-btn .icon { font-size: 20px; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Panels */
+    .panel { display: none; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .panel.active { display: block; }
+    .panel-inner { padding: 18px 16px calc(36px + var(--safe-bot)); }
+
+    .section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); margin-bottom: 12px;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 16px; margin-bottom: 16px;
+    }
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    label {
+      display: block; font-size: 11px; font-weight: 700;
+      color: var(--muted); margin-bottom: 5px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    input[type="text"], input[type="number"], select {
+      width: 100%; background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 10px; color: var(--text); font-size: 16px; font-weight: 500;
+      padding: 12px 14px; -webkit-appearance: none; appearance: none;
+      outline: none; transition: border-color 0.15s; font-family: inherit;
+    }
+    input::placeholder { color: var(--muted); font-weight: 400; }
+    input:focus, select:focus { border-color: var(--accent); }
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235A6072' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
+    }
+    select option { background: #1E2230; }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .computed-field {
+      background: var(--bg); border: 1.5px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .computed-field .cf-val { font-size: 20px; font-weight: 800; color: var(--accent); }
+    .computed-field .cf-lbl { font-size: 12px; color: var(--muted); }
+
+    .btn {
+      display: block; width: 100%; padding: 14px; border: none; border-radius: 11px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.1s, transform 0.1s; font-family: inherit;
+    }
+    .btn:active { opacity: 0.75; transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #000; margin-top: 14px; }
+    .btn-primary:disabled { background: var(--accent-dim); color: #5a4000; }
+    .btn-outline  { background: transparent; border: 1.5px solid var(--border); color: var(--muted); margin-top: 8px; font-size: 14px; padding: 12px; }
+    .btn-danger-outline {
+      background: transparent; border: 1.5px solid var(--danger); color: var(--danger);
+      font-size: 13px; padding: 8px 14px; border-radius: 9px; font-weight: 600;
+      font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+
+    .big-result {
+      background: var(--surface2); border: 2px solid var(--border);
+      border-radius: var(--radius); padding: 20px 18px; text-align: center;
+      margin-top: 14px; transition: border-color 0.2s;
+    }
+    .big-result.active { border-color: var(--accent); }
+    .big-result .br-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 6px; }
+    .big-result .br-val { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; letter-spacing: -2px; }
+    .big-result .br-sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+    .jeu-info-bar {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; display: none;
+    }
+    .jeu-info-bar.visible { display: block; }
+    .ji-name { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .ji-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ji-chip {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 20px; font-size: 12px; font-weight: 600;
+      padding: 4px 10px; color: var(--muted);
+    }
+    .ji-chip span { color: var(--text); }
+
+    .db-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .db-count { font-size: 13px; color: var(--muted); }
+    .db-list { display: flex; flex-direction: column; gap: 8px; }
+    .db-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 13px 14px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .db-item-info { flex: 1; min-width: 0; }
+    .db-item-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .db-item-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .db-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .btn-icon {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); font-size: 15px; width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-icon.edit:active { background: rgba(245,158,11,0.15); color: var(--accent); }
+    .btn-icon.del:active  { background: rgba(239,68,68,0.15);  color: var(--danger); }
+    .db-item.editing { border-color: var(--accent); background: rgba(245,158,11,0.04); }
+
+    .search-wrap { position: relative; margin-bottom: 14px; }
+    .search-wrap input { padding-left: 38px; }
+    .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 15px; pointer-events: none; }
+
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+    .empty .e-icon { font-size: 32px; margin-bottom: 10px; }
+    .sep { height: 1px; background: var(--border); margin: 16px 0; }
+
+    .histo-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 0; border-bottom: 1px solid var(--border);
+    }
+    .histo-row:last-child { border-bottom: none; }
+    .histo-info { flex: 1; min-width: 0; }
+    .histo-name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .histo-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .histo-qte { font-size: 22px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+
+    /* Loading overlay */
+    #loadingOverlay {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 1000; gap: 16px;
+    }
+    #loadingOverlay .spin {
+      width: 36px; height: 36px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    #loadingOverlay p { font-size: 14px; color: var(--muted); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #toast {
+      position: fixed; bottom: calc(20px + var(--safe-bot));
+      left: 50%; transform: translateX(-50%) translateY(16px);
+      background: var(--ok); color: #fff; font-size: 14px; font-weight: 600;
+      padding: 11px 20px; border-radius: 30px;
+      opacity: 0; transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none; white-space: nowrap; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.err  { background: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+  <div class="spin"></div>
+  <p>Connexion à la base de données…</p>
+</div>
+
+<div id="appHeader">
+  <div class="header-row">
+    <div>
+      <div class="header-title">🎰 Illiko — Inventaire</div>
+      <div class="header-sub">Pesée des jeux à gratter · LE GLOBE</div>
+    </div>
+    <div class="sync-dot" id="syncDot" title="Statut sync"></div>
+  </div>
+</div>
+
+<div id="tabBar">
+  <button class="tab-btn active" data-tab="base">
+    <span class="icon">📚</span>Base de données
+  </button>
+  <button class="tab-btn" data-tab="controle">
+    <span class="icon">⚖️</span>Contrôle
+  </button>
+</div>
+
+<!-- PANEL BASE -->
+<div class="panel active" id="panel-base">
+  <div class="panel-inner">
+    <div class="card" id="formCard">
+      <div class="section-title" id="formTitle">Ajouter un jeu</div>
+      <div class="field">
+        <label>Nom du jeu</label>
+        <input type="text" id="db-nom" placeholder="ex : Cash Extrême"
+               autocomplete="off" autocorrect="off" spellcheck="false" />
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label>Poids carnet (g)</label>
+          <input type="number" id="db-poidsCarnet" placeholder="ex : 126.0"
+                 inputmode="decimal" step="0.01" min="0.01" />
+        </div>
+        <div class="field">
+          <label>Tickets / carnet</label>
+          <input type="number" id="db-nbTickets" placeholder="ex : 36"
+                 inputmode="numeric" step="1" min="1" />
+        </div>
+      </div>
+      <div class="field" id="unitCalcWrap" style="display:none">
+        <label>Poids unitaire calculé</label>
+        <div class="computed-field">
+          <div class="cf-val" id="unitCalcVal">—</div>
+          <div class="cf-lbl">grammes<br>par ticket</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnSaveJeu" disabled>Enregistrer le jeu</button>
+      <button class="btn btn-outline"  id="btnCancelEdit" style="display:none">Annuler la modification</button>
+    </div>
+
+    <div class="db-toolbar">
+      <div class="section-title" style="margin:0">Jeux enregistrés</div>
+      <div class="db-count" id="dbCount">—</div>
+    </div>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Rechercher…" autocomplete="off" />
+    </div>
+    <div class="db-list" id="dbList">
+      <div class="empty"><div class="e-icon">⏳</div>Chargement…</div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL CONTRÔLE -->
+<div class="panel" id="panel-controle">
+  <div class="panel-inner">
+    <div class="card">
+      <div class="section-title">Choisir le jeu</div>
+      <div class="field">
+        <select id="ctrl-select">
+          <option value="">— Sélectionner un jeu —</option>
+        </select>
+      </div>
+      <div class="jeu-info-bar" id="jeuInfoBar">
+        <div class="ji-name" id="ji-name">—</div>
+        <div class="ji-chips">
+          <div class="ji-chip">Carnet : <span id="ji-carnet">—</span> g</div>
+          <div class="ji-chip"><span id="ji-nb">—</span> tickets/carnet</div>
+          <div class="ji-chip"><span id="ji-unit">—</span> g/ticket</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="section-title">Saisir le poids</div>
+      <div class="field">
+        <label>Poids pesé (g)</label>
+        <input type="number" id="ctrl-poids"
+               placeholder="Poser sur la balance et saisir…"
+               inputmode="decimal" step="0.01" min="0" disabled />
+      </div>
+      <div class="big-result" id="bigResult">
+        <div class="br-lbl">Quantité de tickets</div>
+        <div class="br-val" id="br-val">—</div>
+        <div class="br-sub" id="br-sub">Sélectionnez un jeu et pesez</div>
+      </div>
+      <button class="btn btn-primary"  id="btnSaveHisto" disabled>Enregistrer dans l'historique</button>
+      <button class="btn btn-outline"  id="btnResetCtrl">Réinitialiser</button>
+    </div>
+
+    <div id="histoSection" style="display:none">
+      <div class="db-toolbar">
+        <div class="section-title" style="margin:0">Historique</div>
+        <button class="btn-danger-outline" id="btnClearHisto">Vider</button>
+      </div>
+      <div class="card" style="padding: 0 16px;">
+        <div id="histoList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script>
+// ─── Firebase config ─────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyDeckcApkHaFgC7RQyX0FDPsJ5WUrY5bN0",
+  authDomain:        "illiko-leglobe.firebaseapp.com",
+  projectId:         "illiko-leglobe",
+  storageBucket:     "illiko-leglobe.firebasestorage.app",
+  messagingSenderId: "480055608210",
+  appId:             "1:480055608210:web:893a41792154ea9e5fb74b"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const jeuxCol  = db.collection('jeux');
+const histoCol = db.collection('historique');
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let jeux  = [];   // [{id (firestoreId), nom, poidsCarnet, nbTickets}]
+let histo = [];
+let editingId = null;
+
+function unitaire(j) { return j.nbTickets > 0 ? j.poidsCarnet / j.nbTickets : 0; }
+
+// ─── Sync dot ─────────────────────────────────────────────────────────────────
+const syncDot = document.getElementById('syncDot');
+function setSynced()  { syncDot.className = 'sync-dot ok'; }
+function setSyncing() { syncDot.className = 'sync-dot'; }
+function setSyncErr() { syncDot.className = 'sync-dot err'; }
+
+// ─── Real-time listeners ──────────────────────────────────────────────────────
+function startListeners() {
+  jeuxCol.orderBy('nom').onSnapshot(snap => {
+    jeux = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setSynced();
+    renderDB();
+    refreshSelect();
+    document.getElementById('loadingOverlay').style.display = 'none';
+  }, err => {
+    console.error(err);
+    setSyncErr();
+    document.getElementById('loadingOverlay').style.display = 'none';
+    toast('⚠️ Erreur de connexion', true);
+  });
+
+  histoCol.orderBy('ts', 'desc').limit(50).onSnapshot(snap => {
+    histo = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderHisto();
+  });
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + t).classList.add('active');
+  });
+});
+
+// ─── BASE — form ──────────────────────────────────────────────────────────────
+const dbNom     = document.getElementById('db-nom');
+const dbCarnet  = document.getElementById('db-poidsCarnet');
+const dbNb      = document.getElementById('db-nbTickets');
+const unitWrap  = document.getElementById('unitCalcWrap');
+const unitVal   = document.getElementById('unitCalcVal');
+const btnSave   = document.getElementById('btnSaveJeu');
+const btnCancel = document.getElementById('btnCancelEdit');
+const formTitle = document.getElementById('formTitle');
+
+function validateForm() {
+  const n  = dbNom.value.trim();
+  const c  = parseFloat(dbCarnet.value);
+  const nb = parseInt(dbNb.value, 10);
+  const ok = n.length > 0 && c > 0 && nb >= 1 && !isNaN(c) && !isNaN(nb);
+  btnSave.disabled = !ok;
+  if (c > 0 && nb >= 1 && !isNaN(c) && !isNaN(nb)) {
+    unitVal.textContent = (c / nb).toFixed(3) + ' g';
+    unitWrap.style.display = 'block';
+  } else {
+    unitWrap.style.display = 'none';
+  }
+}
+[dbNom, dbCarnet, dbNb].forEach(el => el.addEventListener('input', validateForm));
+
+btnSave.addEventListener('click', async () => {
+  const nom  = dbNom.value.trim();
+  const c    = parseFloat(dbCarnet.value);
+  const nb   = parseInt(dbNb.value, 10);
+  if (!nom || isNaN(c) || isNaN(nb) || nb < 1 || c <= 0) return;
+  setSyncing();
+  try {
+    if (editingId) {
+      await jeuxCol.doc(editingId).update({ nom, poidsCarnet: c, nbTickets: nb });
+      toast('✓ ' + nom + ' modifié');
+      cancelEdit();
+    } else {
+      await jeuxCol.add({ nom, poidsCarnet: c, nbTickets: nb });
+      toast('✓ ' + nom + ' ajouté');
+      clearBaseForm();
+    }
+  } catch(e) { setSyncErr(); toast('Erreur : ' + e.message, true); }
+});
+
+function clearBaseForm() {
+  dbNom.value = ''; dbCarnet.value = ''; dbNb.value = '';
+  unitWrap.style.display = 'none'; validateForm(); dbNom.focus();
+}
+
+function cancelEdit() {
+  editingId = null;
+  formTitle.textContent   = 'Ajouter un jeu';
+  btnSave.textContent     = 'Enregistrer le jeu';
+  btnCancel.style.display = 'none';
+  document.querySelectorAll('.db-item.editing').forEach(el => el.classList.remove('editing'));
+  clearBaseForm();
+}
+btnCancel.addEventListener('click', cancelEdit);
+
+function startEdit(id) {
+  const j = jeux.find(x => x.id === id);
+  if (!j) return;
+  editingId = id;
+  dbNom.value    = j.nom;
+  dbCarnet.value = j.poidsCarnet;
+  dbNb.value     = j.nbTickets;
+  formTitle.textContent   = 'Modifier « ' + j.nom + ' »';
+  btnSave.textContent     = 'Sauvegarder';
+  btnCancel.style.display = 'block';
+  document.querySelectorAll('.db-item').forEach(el => el.classList.remove('editing'));
+  const el = document.getElementById('dbitem-' + id);
+  if (el) el.classList.add('editing');
+  validateForm();
+  document.getElementById('panel-base').scrollTo({ top: 0, behavior: 'smooth' });
+  dbNom.focus();
+}
+
+async function deleteJeu(id) {
+  const j = jeux.find(x => x.id === id);
+  if (!j) return;
+  if (!confirm('Supprimer « ' + j.nom + ' » ?')) return;
+  setSyncing();
+  try {
+    await jeuxCol.doc(id).delete();
+    if (editingId === id) cancelEdit();
+    toast('🗑 Supprimé');
+  } catch(e) { setSyncErr(); toast('Erreur', true); }
+}
+
+// ─── BASE — render ────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', renderDB);
+
+function renderDB() {
+  const list = document.getElementById('dbList');
+  const q    = document.getElementById('searchInput').value.trim().toLowerCase();
+  const fil  = q ? jeux.filter(j => j.nom.toLowerCase().includes(q)) : jeux;
+  const n    = jeux.length;
+  document.getElementById('dbCount').textContent = n + (n !== 1 ? ' jeux' : ' jeu');
+
+  if (n === 0) {
+    list.innerHTML = '<div class="empty"><div class="e-icon">📋</div>Aucun jeu encore.<br>Utilisez le formulaire ci-dessus.</div>';
+    return;
+  }
+  if (fil.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="e-icon">🔍</div>Aucun résultat.</div>';
+    return;
+  }
+  list.innerHTML = fil.map(j => {
+    const u = unitaire(j).toFixed(3);
+    return `
+      <div class="db-item" id="dbitem-${j.id}">
+        <div class="db-item-info">
+          <div class="db-item-name">${esc(j.nom)}</div>
+          <div class="db-item-meta">${j.nbTickets} tickets · ${j.poidsCarnet.toFixed(2)} g/carnet · ${u} g/ticket</div>
+        </div>
+        <div class="db-item-actions">
+          <button class="btn-icon edit" data-id="${j.id}">✏️</button>
+          <button class="btn-icon del"  data-id="${j.id}">🗑️</button>
+        </div>
+      </div>`;
+  }).join('');
+  list.querySelectorAll('.btn-icon.edit').forEach(b => b.addEventListener('click', () => startEdit(b.dataset.id)));
+  list.querySelectorAll('.btn-icon.del').forEach(b  => b.addEventListener('click', () => deleteJeu(b.dataset.id)));
+}
+
+// ─── CONTRÔLE ─────────────────────────────────────────────────────────────────
+const ctrlSelect = document.getElementById('ctrl-select');
+const ctrlPoids  = document.getElementById('ctrl-poids');
+const bigResult  = document.getElementById('bigResult');
+const brVal      = document.getElementById('br-val');
+const brSub      = document.getElementById('br-sub');
+const btnSaveH   = document.getElementById('btnSaveHisto');
+
+function refreshSelect() {
+  const prev = ctrlSelect.value;
+  ctrlSelect.innerHTML = '<option value="">— Sélectionner un jeu —</option>' +
+    jeux.map(j => `<option value="${j.id}">${esc(j.nom)}</option>`).join('');
+  if (prev && jeux.find(x => x.id === prev)) ctrlSelect.value = prev;
+  onSelectChange();
+}
+
+ctrlSelect.addEventListener('change', () => { ctrlPoids.value = ''; onSelectChange(); updateResult(); });
+
+function onSelectChange() {
+  const id = ctrlSelect.value;
+  const j  = id ? jeux.find(x => x.id === id) : null;
+  ctrlPoids.disabled = !j;
+  const bar = document.getElementById('jeuInfoBar');
+  bar.className = 'jeu-info-bar' + (j ? ' visible' : '');
+  if (j) {
+    document.getElementById('ji-name').textContent   = j.nom;
+    document.getElementById('ji-carnet').textContent = j.poidsCarnet.toFixed(2);
+    document.getElementById('ji-nb').textContent     = j.nbTickets;
+    document.getElementById('ji-unit').textContent   = unitaire(j).toFixed(3);
+  }
+  if (!j) { brVal.textContent = '—'; brSub.textContent = 'Sélectionnez un jeu et pesez'; bigResult.classList.remove('active'); btnSaveH.disabled = true; }
+}
+
+ctrlPoids.addEventListener('input', updateResult);
+
+function updateResult() {
+  const id = ctrlSelect.value;
+  const j  = id ? jeux.find(x => x.id === id) : null;
+  const p  = parseFloat(ctrlPoids.value);
+  if (!j || isNaN(p) || p < 0) {
+    brVal.textContent = '—'; brSub.textContent = j ? 'Saisissez le poids pesé' : 'Sélectionnez un jeu et pesez';
+    bigResult.classList.remove('active'); btnSaveH.disabled = true; return;
+  }
+  const u   = unitaire(j);
+  const qte = Math.round(p / u);
+  brVal.textContent = qte;
+  brSub.textContent = p.toFixed(2) + ' g ÷ ' + u.toFixed(3) + ' g/ticket';
+  bigResult.classList.add('active');
+  btnSaveH.disabled = false;
+}
+
+btnSaveH.addEventListener('click', async () => {
+  const id = ctrlSelect.value;
+  const j  = jeux.find(x => x.id === id);
+  const p  = parseFloat(ctrlPoids.value);
+  if (!j || isNaN(p)) return;
+  const qte = Math.round(p / unitaire(j));
+  setSyncing();
+  try {
+    await histoCol.add({ nom: j.nom, poids: p, qte, ts: firebase.firestore.FieldValue.serverTimestamp() });
+    toast('✓ ' + qte + ' tickets enregistrés');
+    ctrlPoids.value = ''; updateResult();
+  } catch(e) { setSyncErr(); toast('Erreur', true); }
+});
+
+document.getElementById('btnResetCtrl').addEventListener('click', () => {
+  ctrlSelect.value = ''; ctrlPoids.value = ''; onSelectChange(); updateResult();
+});
+
+// ─── HISTORIQUE ───────────────────────────────────────────────────────────────
+function renderHisto() {
+  const sec  = document.getElementById('histoSection');
+  const list = document.getElementById('histoList');
+  if (histo.length === 0) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = histo.map(h => {
+    const ts   = h.ts ? h.ts.toDate() : new Date();
+    const hhmm = ts.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    const date = ts.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
+    return `
+      <div class="histo-row">
+        <div class="histo-info">
+          <div class="histo-name">${esc(h.nom)}</div>
+          <div class="histo-detail">${date} ${hhmm} · ${h.poids.toFixed(2)} g</div>
+        </div>
+        <div class="histo-qte">${h.qte} 🎟</div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('btnClearHisto').addEventListener('click', async () => {
+  if (!confirm('Vider tout l\'historique ?')) return;
+  setSyncing();
+  try {
+    const snap = await histoCol.get();
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    toast('Historique vidé');
+  } catch(e) { setSyncErr(); toast('Erreur', true); }
+});
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+let _tt;
+const toastEl = document.getElementById('toast');
+function toast(msg, err) {
+  toastEl.textContent = msg;
+  toastEl.className = 'show' + (err ? ' err' : '');
+  clearTimeout(_tt); _tt = setTimeout(() => toastEl.className = '', 2200);
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+startListeners();
+validateForm();
+</script>
+</body>
+</html>
