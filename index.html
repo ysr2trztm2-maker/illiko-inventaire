@@ -516,6 +516,7 @@ async function saveOrder() {
 
 function renderHisto() {
   const list=document.getElementById('histoList');
+  if (!list) return; // panel supprimé
   const sorted=getSortedHisto();
   if(sorted.length===0){ list.innerHTML='<div class="empty"><div class="e-icon">📋</div>Aucune pesée enregistrée.</div>'; return; }
   list.innerHTML=sorted.map(h=>{
@@ -596,14 +597,15 @@ function updateOrderFromDOM(list) {
   saveOrder();
 }
 
-document.getElementById('btnClearHisto').addEventListener('click', async ()=>{
+const _btnClear = document.getElementById('btnClearHisto');
+if (_btnClear) _btnClear.addEventListener('click', async ()=>{
   if(!confirm('Vider tout l\'historique ?')) return;
   setSyncing();
   try {
     await Promise.all(histo.map(h=>fsDelete('historique',h.id)));
     toast('Historique vidé'); await loadAll();
   } catch(e){ setSyncErr(); toast('⚠️ Erreur',true); }
-});
+}); } // fin if _btnClear
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
