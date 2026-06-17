@@ -369,6 +369,20 @@ function setSynced()  { syncDot.className = 'sync-dot ok'; }
 function setSyncing() { syncDot.className = 'sync-dot'; }
 function setSyncErr() { syncDot.className = 'sync-dot err'; }
 
+// ─── Timeout helper ───────────────────────────────────────────────────────────
+function withTimeout(promise, ms = 8000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout réseau')), ms))
+  ]);
+}
+
+// ─── Bouton en cours ──────────────────────────────────────────────────────────
+function setBtnLoading(btn, loading, label) {
+  btn.disabled  = loading;
+  btn.textContent = loading ? '…' : label;
+}
+
 // ─── Real-time listeners ──────────────────────────────────────────────────────
 function startListeners() {
   jeuxCol.orderBy('nom').onSnapshot(snap => {
@@ -432,17 +446,24 @@ btnSave.addEventListener('click', async () => {
   const nb   = parseInt(dbNb.value, 10);
   if (!nom || isNaN(c) || isNaN(nb) || nb < 1 || c <= 0) return;
   setSyncing();
+  setBtnLoading(btnSave, true, '');
   try {
     if (editingId) {
-      await jeuxCol.doc(editingId).update({ nom, poidsCarnet: c, nbTickets: nb });
+      await withTimeout(jeuxCol.doc(editingId).update({ nom, poidsCarnet: c, nbTickets: nb }));
       toast('✓ ' + nom + ' modifié');
       cancelEdit();
     } else {
-      await jeuxCol.add({ nom, poidsCarnet: c, nbTickets: nb, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await withTimeout(jeuxCol.add({ nom, poidsCarnet: c, nbTickets: nb, createdAt: firebase.firestore.FieldValue.serverTimestamp() }));
       toast('✓ ' + nom + ' ajouté');
       clearBaseForm();
     }
-  } catch(e) { setSyncErr(); toast('Erreur : ' + e.message, true); }
+  } catch(e) {
+    setSyncErr();
+    toast('⚠️ ' + (e.message === 'Timeout réseau' ? 'Réseau lent, réessaie' : 'Erreur réseau'), true);
+  } finally {
+    setBtnLoading(btnSave, false, editingId ? 'Sauvegarder' : 'Enregistrer le jeu');
+    validateForm();
+  }
 });
 
 function clearBaseForm() {
@@ -485,10 +506,13 @@ async function deleteJeu(id) {
   if (!confirm('Supprimer « ' + j.nom + ' » ?')) return;
   setSyncing();
   try {
-    await jeuxCol.doc(id).delete();
+    await withTimeout(jeuxCol.doc(id).delete());
     if (editingId === id) cancelEdit();
     toast('🗑 Supprimé');
-  } catch(e) { setSyncErr(); toast('Erreur', true); }
+  } catch(e) {
+    setSyncErr();
+    toast('⚠️ ' + (e.message === 'Timeout réseau' ? 'Réseau lent, réessaie' : 'Erreur réseau'), true);
+  }
 }
 
 // ─── BASE — render ────────────────────────────────────────────────────────────
@@ -590,13 +614,19 @@ btnSaveH.addEventListener('click', async () => {
   if (!j || isNaN(p)) return;
   const qte = Math.round(p / unitaire(j));
   setSyncing();
+  setBtnLoading(btnSaveH, true, '');
   try {
     const ts = firebase.firestore.FieldValue.serverTimestamp();
-    // set() avec l'ID du jeu comme clé → un seul enregistrement par jeu
-    await histoCol.doc(id).set({ nom: j.nom, poids: p, qte, ts });
+    await withTimeout(histoCol.doc(id).set({ nom: j.nom, poids: p, qte, ts }));
     toast('✓ ' + qte + ' tickets enregistrés');
     ctrlPoids.value = ''; updateResult();
-  } catch(e) { setSyncErr(); toast('Erreur', true); }
+  } catch(e) {
+    setSyncErr();
+    toast('⚠️ ' + (e.message === 'Timeout réseau' ? 'Réseau lent, réessaie' : 'Erreur réseau'), true);
+  } finally {
+    setBtnLoading(btnSaveH, false, 'Enregistrer dans l'historique');
+    updateResult();
+  }
 });
 
 document.getElementById('btnResetCtrl').addEventListener('click', () => {
@@ -628,12 +658,15 @@ document.getElementById('btnClearHisto').addEventListener('click', async () => {
   if (!confirm('Vider tout l\'historique ?')) return;
   setSyncing();
   try {
-    const snap = await histoCol.get();
+    const snap = await withTimeout(histoCol.get());
     const batch = db.batch();
     snap.docs.forEach(d => batch.delete(d.ref));
-    await batch.commit();
+    await withTimeout(batch.commit());
     toast('Historique vidé');
-  } catch(e) { setSyncErr(); toast('Erreur', true); }
+  } catch(e) {
+    setSyncErr();
+    toast('⚠️ ' + (e.message === 'Timeout réseau' ? 'Réseau lent, réessaie' : 'Erreur réseau'), true);
+  }
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
