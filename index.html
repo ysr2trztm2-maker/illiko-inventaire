@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Illiko — Inventaire</title>
+  <title>Illiko — Inventaire v4</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -109,7 +109,7 @@
     </div>
     <div class="sync-dot" id="syncDot"></div>
   </div>
-  <div id="debugMsg" style="font-size:11px;color:#F59E0B;margin-top:6px;word-break:break-all;"></div>
+  <div id="debugMsg" style="font-size:13px;color:#EF4444;font-weight:700;margin-top:6px;word-break:break-all;min-height:18px;">JS non chargé</div>
 </div>
 
 <div id="tabBar">
@@ -618,6 +618,7 @@ let lastTap=0;
 document.addEventListener('touchend',e=>{ const now=Date.now(); if(now-lastTap<300) e.preventDefault(); lastTap=now; },{passive:false});
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
+document.getElementById('debugMsg').textContent = 'JS OK — connexion…';
 validateForm();
 loadAll();
 </script>
