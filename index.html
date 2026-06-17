@@ -227,29 +227,40 @@ function fromFS(doc) {
   return obj;
 }
 
+async function fetchWithTimeout(url, options={}, ms=8000) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...options, signal: ctrl.signal });
+    clearTimeout(tid);
+    return r;
+  } catch(e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') throw new Error('Timeout — vérifiez votre connexion');
+    throw new Error('Réseau : ' + e.message);
+  }
+}
+
 async function fsGet(col) {
   const url = `${BASE}/${col}?pageSize=200`;
-  let r;
-  try { r = await fetch(url); }
-  catch(e) { throw new Error('Réseau inaccessible : ' + e.message); }
+  const r = await fetchWithTimeout(url);
   if (!r.ok) {
-    let body = '';
-    try { body = await r.text(); } catch(_) {}
-    throw new Error(`Firestore ${col} : HTTP ${r.status} — ${body.slice(0,120)}`);
+    let body = ''; try { body = await r.text(); } catch(_) {}
+    throw new Error(`HTTP ${r.status} — ${body.slice(0,100)}`);
   }
   const d = await r.json();
   return (d.documents || []).map(fromFS);
 }
 
 async function fsGetDoc(col, id) {
-  const r = await fetch(`${BASE}/${col}/${id}`);
+  const r = await fetchWithTimeout(`${BASE}/${col}/${id}`);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`GET ${col}/${id}: ${r.status}`);
   return fromFS(await r.json());
 }
 
 async function fsAdd(col, obj) {
-  const r = await fetch(`${BASE}/${col}`, {
+  const r = await fetchWithTimeout(`${BASE}/${col}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(toFS({ ...obj, createdAt: new Date().toISOString() }))
   });
@@ -260,7 +271,7 @@ async function fsAdd(col, obj) {
 async function fsSet(col, id, obj) {
   const fields = toFS(obj).fields;
   const mask = Object.keys(fields).join(',');
-  const r = await fetch(`${BASE}/${col}/${id}?updateMask.fieldPaths=${encodeURIComponent(mask)}`, {
+  const r = await fetchWithTimeout(`${BASE}/${col}/${id}?updateMask.fieldPaths=${encodeURIComponent(mask)}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields })
   });
@@ -271,7 +282,7 @@ async function fsSet(col, id, obj) {
 async function fsUpdate(col, id, obj) { return fsSet(col, id, obj); }
 
 async function fsDelete(col, id) {
-  const r = await fetch(`${BASE}/${col}/${id}`, { method: 'DELETE' });
+  const r = await fetchWithTimeout(`${BASE}/${col}/${id}`, { method: 'DELETE' });
   if (!r.ok) throw new Error(`DELETE ${col}/${id}: ${r.status}`);
 }
 
