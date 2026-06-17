@@ -86,6 +86,14 @@
     .histo-qte{font-size:22px;font-weight:800;color:var(--accent);white-space:nowrap;}
     .histo-row.dragging{opacity:.4;}
     .histo-row.drag-over{border-top:2px solid var(--accent);}
+    .ctrl-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);}
+    .ctrl-row:last-child{border-bottom:none;}
+    .ctrl-nom{flex:1;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .ctrl-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+    .ctrl-qte{font-size:22px;font-weight:800;white-space:nowrap;min-width:60px;text-align:right;}
+    .ctrl-qte.zero{color:var(--muted);}
+    .ctrl-qte.ok{color:var(--ok);}
+    .ctrl-date{font-size:11px;color:var(--muted);text-align:right;margin-top:2px;}
     #toast{position:fixed;bottom:calc(20px + var(--safe-bot));left:50%;transform:translateX(-50%) translateY(16px);background:var(--ok);color:#fff;font-size:14px;font-weight:600;padding:11px 20px;border-radius:30px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;z-index:999;}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
     #toast.err{background:var(--danger);}
@@ -138,12 +146,12 @@
 
 <div class="panel" id="panel-controle">
   <div class="panel-inner">
-    <div id="histoSection">
-      <div class="db-toolbar">
-        <div class="section-title" style="margin:0">Historique</div>
-        <button class="btn-danger-outline" id="btnClearHisto">Vider</button>
-      </div>
-      <div class="card" style="padding:0 16px"><div id="histoList"><div class="empty"><div class="e-icon">📋</div>Aucune pesée enregistrée.</div></div></div>
+    <div class="db-toolbar">
+      <div class="section-title" style="margin:0">État du stock</div>
+      <div class="db-count" id="ctrlCount">—</div>
+    </div>
+    <div class="card" style="padding:0">
+      <div id="ctrlList"><div class="empty"><div class="e-icon">⏳</div>Chargement…</div></div>
     </div>
   </div>
 </div>
@@ -276,6 +284,7 @@ async function loadAll() {
     renderDB();
     refreshSelect();
     renderHisto();
+    renderControle();
   } catch(e) {
     setSyncErr();
     toast('⚠️ Erreur réseau : ' + e.message, true);
@@ -444,7 +453,7 @@ btnSaveH.addEventListener('click', async () => {
   try {
     await fsSet('historique', id, { nom:j.nom, poids:p, qte, ts:new Date().toISOString() });
     toast('✓ '+qte+' tickets enregistrés');
-    ctrlPoids.value=''; updateResult(); await loadAll();
+    ctrlPoids.value=''; updateResult(); await loadAll(); renderControle();
   } catch(e) { setSyncErr(); toast('⚠️ Erreur', true); }
   finally { btnSaveH.textContent="Enregistrer dans l'historique"; updateResult(); }
 });
@@ -482,6 +491,47 @@ function renderHisto() {
     </div>`;
   }).join('');
   initDragDrop(list);
+}
+
+function renderControle() {
+  const list = document.getElementById('ctrlList');
+  const count = document.getElementById('ctrlCount');
+  if (!list) return;
+
+  // Trier les jeux par ordre alphabétique
+  const sorted = [...jeux].sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="e-icon">📋</div>Aucun jeu dans la base.</div>';
+    if (count) count.textContent = '—';
+    return;
+  }
+
+  if (count) count.textContent = sorted.length + (sorted.length > 1 ? ' jeux' : ' jeu');
+
+  list.innerHTML = sorted.map(j => {
+    // Chercher la pesée dans l'historique
+    const h = histo.find(x => x.id === j.id);
+    const qte = h ? Number(h.qte) : 0;
+    const hasData = !!h;
+    const qteClass = !hasData ? 'zero' : 'ok';
+    let dateStr = '';
+    if (h && h.ts) {
+      const d = new Date(h.ts);
+      dateStr = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) + ' ' +
+                d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    }
+    return `<div class="ctrl-row">
+      <div style="flex:1;min-width:0">
+        <div class="ctrl-nom">${esc(j.nom)}</div>
+        <div class="ctrl-meta">${unitaire(j).toFixed(3)} g/ticket</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div class="ctrl-qte ${qteClass}">${qte} 🎟</div>
+        <div class="ctrl-date">${dateStr || 'Jamais pesé'}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function initDragDrop(list) {
