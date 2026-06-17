@@ -410,58 +410,58 @@ function setBtnLoading(btn, loading, label) {
 
 // ─── Real-time listeners ──────────────────────────────────────────────────────
 function startListeners() {
-  let jeuxReady  = false;
-  let histoReady = false;
+  const overlay = document.getElementById('loadingOverlay');
 
-  function hideLoader() {
-    if (jeuxReady && histoReady) {
-      document.getElementById('loadingOverlay').style.display = 'none';
-    }
-  }
+  // Masquer le loader dès que possible, 4s max
+  setTimeout(() => { overlay.style.display = 'none'; }, 4000);
 
-  // Timeout de secours : masquer le loader après 6s quoi qu'il arrive
-  const loaderTimeout = setTimeout(() => {
-    document.getElementById('loadingOverlay').style.display = 'none';
-    if (!jeuxReady) toast('⚠️ Connexion lente', true);
-  }, 6000);
-
-  jeuxCol.orderBy('nom').onSnapshot(snap => {
-    clearTimeout(loaderTimeout);
+  // Charger les jeux en one-shot d'abord, puis écouter les changements
+  jeuxCol.orderBy('nom').get().then(snap => {
     jeux = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     setSynced();
     renderDB();
     refreshSelect();
-    jeuxReady = true;
-    hideLoader();
-  }, err => {
-    clearTimeout(loaderTimeout);
-    console.error(err);
+    overlay.style.display = 'none';
+  }).catch(err => {
+    console.error('jeux get:', err);
     setSyncErr();
-    document.getElementById('loadingOverlay').style.display = 'none';
-    toast('⚠️ Erreur de connexion', true);
+    overlay.style.display = 'none';
+    toast('⚠️ Erreur connexion', true);
   });
+
+  // Puis listener temps réel
+  jeuxCol.orderBy('nom').onSnapshot(snap => {
+    jeux = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setSynced();
+    renderDB();
+    refreshSelect();
+    overlay.style.display = 'none';
+  }, err => { console.warn('jeux listener:', err); });
+
+  histoCol.get().then(snap => {
+    histo = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderHisto();
+  }).catch(err => { console.warn('histo get:', err); });
 
   histoCol.onSnapshot(snap => {
     histo = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    histoReady = true;
-    hideLoader();
     renderHisto();
-  }, err => {
-    console.error(err);
-    histoReady = true;
-    hideLoader();
-  });
+  }, err => { console.warn('histo listener:', err); });
 
-  // Ordre partagé — optionnel, ne bloque pas le chargement
-  db.collection('config').doc('histoOrder').onSnapshot(snap => {
-    if (snap.exists) {
-      const data = snap.data();
-      if (data && Array.isArray(data.order)) histoOrder = data.order;
+  // Ordre partagé
+  db.collection('config').doc('histoOrder').get().then(snap => {
+    if (snap.exists && snap.data() && Array.isArray(snap.data().order)) {
+      histoOrder = snap.data().order;
+      renderHisto();
     }
-    renderHisto();
-  }, err => {
-    console.warn('config/histoOrder inaccessible:', err);
-  });
+  }).catch(() => {});
+
+  db.collection('config').doc('histoOrder').onSnapshot(snap => {
+    if (snap.exists && snap.data() && Array.isArray(snap.data().order)) {
+      histoOrder = snap.data().order;
+      renderHisto();
+    }
+  }, () => {});
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
