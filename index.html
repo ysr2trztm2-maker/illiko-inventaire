@@ -92,6 +92,7 @@
     input::placeholder { color: var(--muted); font-weight: 400; }
     input:focus, select:focus { border-color: var(--accent); }
     input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type="date"] { color-scheme: dark; }
     select {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235A6072' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
@@ -260,6 +261,10 @@
           <input type="number" id="db-nbTickets" placeholder="ex : 36"
                  inputmode="numeric" step="1" min="1" />
         </div>
+      </div>
+      <div class="field">
+        <label>Date d'étalonnage</label>
+        <input type="date" id="db-dateEtalon" />
       </div>
       <div class="field" id="unitCalcWrap" style="display:none">
         <label>Poids unitaire calculé</label>
@@ -433,11 +438,13 @@ btnSave.addEventListener('click', async () => {
   setSyncing();
   try {
     if (editingId) {
-      await jeuxCol.doc(editingId).update({ nom, poidsCarnet: c, nbTickets: nb });
+      const dateEtalon = document.getElementById('db-dateEtalon').value || null;
+      await jeuxCol.doc(editingId).update({ nom, poidsCarnet: c, nbTickets: nb, dateEtalon });
       toast('✓ ' + nom + ' modifié');
       cancelEdit();
     } else {
-      await jeuxCol.add({ nom, poidsCarnet: c, nbTickets: nb });
+      const dateEtalon = document.getElementById('db-dateEtalon').value || null;
+      await jeuxCol.add({ nom, poidsCarnet: c, nbTickets: nb, dateEtalon });
       toast('✓ ' + nom + ' ajouté');
       clearBaseForm();
     }
@@ -446,6 +453,7 @@ btnSave.addEventListener('click', async () => {
 
 function clearBaseForm() {
   dbNom.value = ''; dbCarnet.value = ''; dbNb.value = '';
+  document.getElementById('db-dateEtalon').value = '';
   unitWrap.style.display = 'none'; validateForm(); dbNom.focus();
 }
 
@@ -466,6 +474,7 @@ function startEdit(id) {
   dbNom.value    = j.nom;
   dbCarnet.value = j.poidsCarnet;
   dbNb.value     = j.nbTickets;
+  document.getElementById('db-dateEtalon').value = j.dateEtalon || '';
   formTitle.textContent   = 'Modifier « ' + j.nom + ' »';
   btnSave.textContent     = 'Sauvegarder';
   btnCancel.style.display = 'block';
@@ -515,13 +524,20 @@ function renderDB() {
       dateStr = ' · 🗓 ' + d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' })
                 + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
     } else {
-      dateStr = ' · <span style="color:var(--danger)">jamais pesé</span>';
+      dateStr = '';
+    }
+    let etalonStr = '';
+    if (j.dateEtalon) {
+      const [y,m,d] = j.dateEtalon.split('-');
+      etalonStr = ' · Étalonné le ' + d + '/' + m + '/' + y.slice(2);
+    } else {
+      etalonStr = ' · <span style="color:var(--danger)">non étalonné</span>';
     }
     return `
       <div class="db-item" id="dbitem-${j.id}">
         <div class="db-item-info">
           <div class="db-item-name">${esc(j.nom)}</div>
-          <div class="db-item-meta">${j.nbTickets} tickets · ${u} g/ticket${dateStr}</div>
+          <div class="db-item-meta">${j.nbTickets} tickets · ${u} g/ticket${etalonStr}</div>
         </div>
         <div class="db-item-actions">
           <button class="btn-icon edit" data-id="${j.id}">✏️</button>
