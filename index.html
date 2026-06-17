@@ -228,8 +228,15 @@ function fromFS(doc) {
 }
 
 async function fsGet(col) {
-  const r = await fetch(`${BASE}/${col}?pageSize=200`);
-  if (!r.ok) throw new Error(`GET ${col}: ${r.status}`);
+  const url = `${BASE}/${col}?pageSize=200`;
+  let r;
+  try { r = await fetch(url); }
+  catch(e) { throw new Error('Réseau inaccessible : ' + e.message); }
+  if (!r.ok) {
+    let body = '';
+    try { body = await r.text(); } catch(_) {}
+    throw new Error(`Firestore ${col} : HTTP ${r.status} — ${body.slice(0,120)}`);
+  }
   const d = await r.json();
   return (d.documents || []).map(fromFS);
 }
@@ -272,13 +279,20 @@ async function fsDelete(col, id) {
 async function loadAll() {
   setSyncing();
   try {
-    [jeux, histo] = await Promise.all([
+    // Charger jeux et historique en parallèle
+    const [jeuxData, histoData] = await Promise.all([
       fsGet('jeux'),
       fsGet('historique')
     ]);
-    // Charger l'ordre
-    const orderDoc = await fsGetDoc('config', 'histoOrder');
-    if (orderDoc && orderDoc.order) histoOrder = orderDoc.order;
+    jeux  = jeuxData;
+    histo = histoData;
+
+    // Ordre optionnel
+    try {
+      const orderDoc = await fsGetDoc('config', 'histoOrder');
+      if (orderDoc && orderDoc.order) histoOrder = orderDoc.order;
+    } catch(_) {}
+
     jeux.sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
     setSynced();
     renderDB();
@@ -287,7 +301,12 @@ async function loadAll() {
     renderControle();
   } catch(e) {
     setSyncErr();
-    toast('⚠️ Erreur réseau : ' + e.message, true);
+    // Afficher l'erreur précise dans un toast long
+    const msg = e.message || String(e);
+    toast('⚠️ ' + msg, true);
+    console.error('loadAll error:', e);
+    // Réessayer dans 10s
+    setTimeout(loadAll, 10000);
   }
 }
 
