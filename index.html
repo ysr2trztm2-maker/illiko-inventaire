@@ -196,20 +196,6 @@
     .histo-row.dragging { opacity: 0.4; }
     .histo-row.drag-over { border-top: 2px solid var(--accent); }
 
-    /* Loading overlay */
-    #loadingOverlay {
-      position: fixed; inset: 0; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      z-index: 1000; gap: 16px;
-    }
-    #loadingOverlay .spin {
-      width: 36px; height: 36px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    #loadingOverlay p { font-size: 14px; color: var(--muted); }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
     #toast {
       position: fixed; bottom: calc(20px + var(--safe-bot));
       left: 50%; transform: translateX(-50%) translateY(16px);
@@ -223,11 +209,6 @@
   </style>
 </head>
 <body>
-
-<div id="loadingOverlay">
-  <div class="spin"></div>
-  <p>Connexion à la base de données…</p>
-</div>
 
 <div id="appHeader">
   <div class="header-row">
@@ -410,10 +391,9 @@ function setBtnLoading(btn, loading, label) {
 
 // ─── Real-time listeners ──────────────────────────────────────────────────────
 function startListeners() {
-  const overlay = document.getElementById('loadingOverlay');
 
   // Masquer le loader dès que possible, 4s max
-  setTimeout(() => { overlay.style.display = 'none'; }, 4000);
+  setTimeout(() => { }, 4000);
 
   // Charger les jeux en one-shot d'abord, puis écouter les changements
   jeuxCol.orderBy('nom').get().then(snap => {
@@ -421,11 +401,9 @@ function startListeners() {
     setSynced();
     renderDB();
     refreshSelect();
-    overlay.style.display = 'none';
   }).catch(err => {
     console.error('jeux get:', err);
     setSyncErr();
-    overlay.style.display = 'none';
     toast('⚠️ Erreur connexion', true);
   });
 
@@ -435,7 +413,6 @@ function startListeners() {
     setSynced();
     renderDB();
     refreshSelect();
-    overlay.style.display = 'none';
   }, err => { console.warn('jeux listener:', err); });
 
   histoCol.get().then(snap => {
