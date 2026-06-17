@@ -109,6 +109,7 @@
     </div>
     <div class="sync-dot" id="syncDot"></div>
   </div>
+  <div id="debugMsg" style="font-size:11px;color:#F59E0B;margin-top:6px;word-break:break-all;"></div>
 </div>
 
 <div id="tabBar">
@@ -290,14 +291,21 @@ async function fsDelete(col, id) {
 }
 
 // ─── Polling (remplace onSnapshot) ───────────────────────────────────────────
+function dbg(msg) {
+  const el = document.getElementById('debugMsg');
+  if (el) el.textContent = msg;
+  console.log('[illiko]', msg);
+}
+
 async function loadAll() {
   setSyncing();
+  dbg('Connexion…');
   try {
-    // Charger jeux et historique en parallèle
-    const [jeuxData, histoData] = await Promise.all([
-      fsGet('jeux'),
-      fsGet('historique')
-    ]);
+    dbg('Chargement jeux…');
+    const jeuxData = await fsGet('jeux');
+    dbg('Jeux OK (' + jeuxData.length + ') — chargement historique…');
+    const histoData = await fsGet('historique');
+    dbg('Historique OK (' + histoData.length + ')');
     jeux  = jeuxData;
     histo = histoData;
 
@@ -309,17 +317,17 @@ async function loadAll() {
 
     jeux.sort((a,b) => a.nom.localeCompare(b.nom, 'fr'));
     setSynced();
+    dbg('');
     renderDB();
     refreshSelect();
     renderHisto();
     renderControle();
   } catch(e) {
     setSyncErr();
-    // Afficher l'erreur précise dans un toast long
     const msg = e.message || String(e);
+    dbg('ERREUR: ' + msg);
     toast('⚠️ ' + msg, true);
     console.error('loadAll error:', e);
-    // Réessayer dans 10s
     setTimeout(loadAll, 10000);
   }
 }
