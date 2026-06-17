@@ -104,11 +104,51 @@
 </div>
 
 <div id="tabBar">
-  <button class="tab-btn active" data-tab="base"><span class="icon">📚</span>Base de données</button>
-  <button class="tab-btn" data-tab="controle"><span class="icon">⚖️</span>Contrôle</button>
+  <button class="tab-btn active" data-tab="saisie"><span class="icon">⚖️</span>Saisie</button>
+  <button class="tab-btn" data-tab="controle"><span class="icon">📋</span>Contrôle</button>
+  <button class="tab-btn" data-tab="base"><span class="icon">📚</span>Base</button>
 </div>
 
-<div class="panel active" id="panel-base">
+<div class="panel" id="panel-saisie">
+  <div class="panel-inner">
+    <div class="card">
+      <div class="section-title">Choisir le jeu</div>
+      <div class="field"><select id="ctrl-select"><option value="">— Sélectionner un jeu —</option></select></div>
+      <div class="jeu-info-bar" id="jeuInfoBar">
+        <div class="ji-name" id="ji-name">—</div>
+        <div class="ji-chips">
+          <div class="ji-chip">Carnet : <span id="ji-carnet">—</span> g</div>
+          <div class="ji-chip"><span id="ji-nb">—</span> tickets/carnet</div>
+          <div class="ji-chip"><span id="ji-unit">—</span> g/ticket</div>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div class="section-title">Saisir le poids</div>
+      <div class="field"><label>Poids pesé (g)</label><input type="number" id="ctrl-poids" placeholder="Saisir le poids…" inputmode="decimal" step="0.01" min="0" disabled/></div>
+      <div class="big-result" id="bigResult">
+        <div class="br-lbl">Quantité de tickets</div>
+        <div class="br-val" id="br-val">—</div>
+        <div class="br-sub" id="br-sub">Sélectionnez un jeu et pesez</div>
+      </div>
+      <button class="btn btn-primary" id="btnSaveHisto" disabled>Enregistrer dans l'historique</button>
+      <button class="btn btn-outline" id="btnResetCtrl">Réinitialiser</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-controle">
+  <div class="panel-inner">
+    <div id="histoSection">
+      <div class="db-toolbar">
+        <div class="section-title" style="margin:0">Historique</div>
+        <button class="btn-danger-outline" id="btnClearHisto">Vider</button>
+      </div>
+      <div class="card" style="padding:0 16px"><div id="histoList"><div class="empty"><div class="e-icon">📋</div>Aucune pesée enregistrée.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-base">
   <div class="panel-inner">
     <div class="card">
       <div class="section-title" id="formTitle">Ajouter un jeu</div>
@@ -133,39 +173,6 @@
   </div>
 </div>
 
-<div class="panel" id="panel-controle">
-  <div class="panel-inner">
-    <div class="card">
-      <div class="section-title">Choisir le jeu</div>
-      <div class="field"><select id="ctrl-select"><option value="">— Sélectionner un jeu —</option></select></div>
-      <div class="jeu-info-bar" id="jeuInfoBar">
-        <div class="ji-name" id="ji-name">—</div>
-        <div class="ji-chips">
-          <div class="ji-chip">Carnet : <span id="ji-carnet">—</span> g</div>
-          <div class="ji-chip"><span id="ji-nb">—</span> tickets/carnet</div>
-          <div class="ji-chip"><span id="ji-unit">—</span> g/ticket</div>
-        </div>
-      </div>
-      <div class="sep"></div>
-      <div class="section-title">Saisir le poids</div>
-      <div class="field"><label>Poids pesé (g)</label><input type="number" id="ctrl-poids" placeholder="Saisir le poids…" inputmode="decimal" step="0.01" min="0" disabled/></div>
-      <div class="big-result" id="bigResult">
-        <div class="br-lbl">Quantité de tickets</div>
-        <div class="br-val" id="br-val">—</div>
-        <div class="br-sub" id="br-sub">Sélectionnez un jeu et pesez</div>
-      </div>
-      <button class="btn btn-primary" id="btnSaveHisto" disabled>Enregistrer dans l'historique</button>
-      <button class="btn btn-outline" id="btnResetCtrl">Réinitialiser</button>
-    </div>
-    <div id="histoSection" style="display:none">
-      <div class="db-toolbar">
-        <div class="section-title" style="margin:0">Historique</div>
-        <button class="btn-danger-outline" id="btnClearHisto">Vider</button>
-      </div>
-      <div class="card" style="padding:0 16px"><div id="histoList"></div></div>
-    </div>
-  </div>
-</div>
 
 <div id="toast"></div>
 
@@ -458,11 +465,9 @@ async function saveOrder() {
 }
 
 function renderHisto() {
-  const sec=document.getElementById('histoSection');
   const list=document.getElementById('histoList');
   const sorted=getSortedHisto();
-  if(sorted.length===0){ sec.style.display='none'; return; }
-  sec.style.display='block';
+  if(sorted.length===0){ list.innerHTML='<div class="empty"><div class="e-icon">📋</div>Aucune pesée enregistrée.</div>'; return; }
   list.innerHTML=sorted.map(h=>{
     const ts=h.ts?new Date(h.ts):new Date();
     const hhmm=ts.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
