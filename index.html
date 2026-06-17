@@ -199,12 +199,11 @@ function unitaire(j) { return j.nbTickets > 0 ? j.poidsCarnet / j.nbTickets : 0;
 
 // ─── Firestore REST helpers ───────────────────────────────────────────────────
 function toFS(obj) {
-  // Convertit un objet JS en format Firestore fields
   const fields = {};
   for (const [k, v] of Object.entries(obj)) {
     if (v === null || v === undefined) continue;
     if (typeof v === 'string')  fields[k] = { stringValue: v };
-    if (typeof v === 'number')  fields[k] = { doubleValue: v };
+    if (typeof v === 'number')  fields[k] = Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
     if (typeof v === 'boolean') fields[k] = { booleanValue: v };
     if (Array.isArray(v))       fields[k] = { arrayValue: { values: v.map(x => ({ stringValue: String(x) })) } };
   }
@@ -212,17 +211,21 @@ function toFS(obj) {
 }
 
 function fromFS(doc) {
-  // Convertit un document Firestore en objet JS
   const id = doc.name.split('/').pop();
   const obj = { id };
   if (!doc.fields) return obj;
   for (const [k, v] of Object.entries(doc.fields)) {
-    if (v.stringValue  !== undefined) obj[k] = v.stringValue;
-    if (v.doubleValue  !== undefined) obj[k] = v.doubleValue;
-    if (v.integerValue !== undefined) obj[k] = Number(v.integerValue);
-    if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+    if (v.stringValue    !== undefined) obj[k] = v.stringValue;
+    if (v.doubleValue    !== undefined) obj[k] = Number(v.doubleValue);
+    if (v.integerValue   !== undefined) obj[k] = Number(v.integerValue);
+    if (v.booleanValue   !== undefined) obj[k] = v.booleanValue;
+    if (v.nullValue      !== undefined) obj[k] = null;
     if (v.timestampValue !== undefined) obj[k] = new Date(v.timestampValue);
-    if (v.arrayValue   !== undefined) obj[k] = (v.arrayValue.values || []).map(x => x.stringValue || x.integerValue || x.doubleValue);
+    if (v.arrayValue     !== undefined) obj[k] = (v.arrayValue.values || []).map(x =>
+      x.stringValue !== undefined ? x.stringValue :
+      x.integerValue !== undefined ? Number(x.integerValue) :
+      x.doubleValue !== undefined ? Number(x.doubleValue) : null
+    );
   }
   return obj;
 }
