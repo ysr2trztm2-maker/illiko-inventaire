@@ -509,11 +509,19 @@ function renderDB() {
   }
   list.innerHTML = fil.map(j => {
     const u = unitaire(j).toFixed(3);
+    let dateStr = '';
+    if (j.dernierePesee) {
+      const d = j.dernierePesee.toDate ? j.dernierePesee.toDate() : new Date(j.dernierePesee);
+      dateStr = ' · 🗓 ' + d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'2-digit' })
+                + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+    } else {
+      dateStr = ' · <span style="color:var(--danger)">jamais pesé</span>';
+    }
     return `
       <div class="db-item" id="dbitem-${j.id}">
         <div class="db-item-info">
           <div class="db-item-name">${esc(j.nom)}</div>
-          <div class="db-item-meta">${j.nbTickets} tickets · ${j.poidsCarnet.toFixed(2)} g/carnet · ${u} g/ticket</div>
+          <div class="db-item-meta">${j.nbTickets} tickets · ${u} g/ticket${dateStr}</div>
         </div>
         <div class="db-item-actions">
           <button class="btn-icon edit" data-id="${j.id}">✏️</button>
@@ -584,7 +592,9 @@ btnSaveH.addEventListener('click', async () => {
   const qte = Math.round(p / unitaire(j));
   setSyncing();
   try {
-    await histoCol.add({ nom: j.nom, poids: p, qte, ts: firebase.firestore.FieldValue.serverTimestamp() });
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    await histoCol.add({ nom: j.nom, poids: p, qte, ts });
+    await jeuxCol.doc(id).update({ dernierePesee: ts, derniereQte: qte });
     toast('✓ ' + qte + ' tickets enregistrés');
     ctrlPoids.value = ''; updateResult();
   } catch(e) { setSyncErr(); toast('Erreur', true); }
