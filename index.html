@@ -187,6 +187,14 @@
     .histo-name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .histo-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .histo-qte { font-size: 22px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+    .histo-handle {
+      color: var(--muted); font-size: 18px; cursor: grab; padding: 4px 6px;
+      touch-action: none; user-select: none; flex-shrink: 0;
+    }
+    .histo-handle:active { cursor: grabbing; }
+    .histo-row { transition: opacity 0.15s; }
+    .histo-row.dragging { opacity: 0.4; }
+    .histo-row.drag-over { border-top: 2px solid var(--accent); }
 
     /* Loading overlay */
     #loadingOverlay {
@@ -357,9 +365,24 @@ const jeuxCol  = db.collection('jeux');
 const histoCol = db.collection('historique');
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let jeux  = [];   // [{id (firestoreId), nom, poidsCarnet, nbTickets}]
-let histo = [];
+let jeux      = [];   // [{id (firestoreId), nom, poidsCarnet, nbTickets}]
+let histo     = [];
+let histoOrder = [];  // tableau d'IDs dans l'ordre choisi par l'utilisateur
 let editingId = null;
+const LS_ORDER = 'illiko_histo_order_v1';
+
+function loadOrder()  { try { histoOrder = JSON.parse(localStorage.getItem(LS_ORDER)) || []; } catch { histoOrder = []; } }
+function saveOrder()  { localStorage.setItem(LS_ORDER, JSON.stringify(histoOrder)); }
+
+function getSortedHisto() {
+  // Trier histo selon histoOrder, les nouveaux (pas encore dans order) vont à la fin
+  const known = histoOrder.filter(id => histo.find(h => h.id === id));
+  const unknown = histo.filter(h => !histoOrder.includes(h.id)).map(h => h.id);
+  const finalOrder = [...known, ...unknown];
+  // Mettre à jour histoOrder pour inclure les nouveaux
+  if (unknown.length > 0) { histoOrder = finalOrder; saveOrder(); }
+  return finalOrder.map(id => histo.find(h => h.id === id)).filter(Boolean);
+}
 
 function unitaire(j) { return j.nbTickets > 0 ? j.poidsCarnet / j.nbTickets : 0; }
 
@@ -637,14 +660,17 @@ document.getElementById('btnResetCtrl').addEventListener('click', () => {
 function renderHisto() {
   const sec  = document.getElementById('histoSection');
   const list = document.getElementById('histoList');
-  if (histo.length === 0) { sec.style.display = 'none'; return; }
+  const sorted = getSortedHisto();
+  if (sorted.length === 0) { sec.style.display = 'none'; return; }
   sec.style.display = 'block';
-  list.innerHTML = histo.map(h => {
+
+  list.innerHTML = sorted.map(h => {
     const ts   = h.ts ? h.ts.toDate() : new Date();
     const hhmm = ts.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
     const date = ts.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
     return `
-      <div class="histo-row">
+      <div class="histo-row" data-id="${h.id}" draggable="true">
+        <div class="histo-handle">⠿</div>
         <div class="histo-info">
           <div class="histo-name">${esc(h.nom)}</div>
           <div class="histo-detail">${date} ${hhmm} · ${h.poids.toFixed(2)} g</div>
@@ -652,6 +678,102 @@ function renderHisto() {
         <div class="histo-qte">${h.qte} 🎟</div>
       </div>`;
   }).join('');
+
+  initDragDrop(list);
+}
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+function initDragDrop(list) {
+  let dragSrc = null;
+
+  // Desktop drag & drop
+  list.querySelectorAll('.histo-row').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragSrc = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      list.querySelectorAll('.histo-row').forEach(r => r.classList.remove('drag-over'));
+      updateOrderFromDOM(list);
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      list.querySelectorAll('.histo-row').forEach(r => r.classList.remove('drag-over'));
+      if (row !== dragSrc) row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrc && row !== dragSrc) {
+        const rows = [...list.querySelectorAll('.histo-row')];
+        const srcIdx = rows.indexOf(dragSrc);
+        const dstIdx = rows.indexOf(row);
+        if (srcIdx < dstIdx) row.after(dragSrc);
+        else row.before(dragSrc);
+      }
+    });
+  });
+
+  // Touch drag & drop (mobile)
+  let touchSrc = null, touchClone = null, lastOver = null;
+
+  list.querySelectorAll('.histo-handle').forEach(handle => {
+    handle.addEventListener('touchstart', e => {
+      const row = handle.closest('.histo-row');
+      touchSrc = row;
+      row.classList.add('dragging');
+      // Clone visuel
+      touchClone = row.cloneNode(true);
+      touchClone.style.cssText = 'position:fixed;opacity:0.85;pointer-events:none;z-index:9999;width:' + row.offsetWidth + 'px;background:var(--surface2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
+      const rect = row.getBoundingClientRect();
+      touchClone.style.top  = rect.top + 'px';
+      touchClone.style.left = rect.left + 'px';
+      document.body.appendChild(touchClone);
+      e.preventDefault();
+    }, { passive: false });
+
+    handle.addEventListener('touchmove', e => {
+      if (!touchSrc || !touchClone) return;
+      const t = e.touches[0];
+      touchClone.style.top  = (t.clientY - 30) + 'px';
+      touchClone.style.left = (t.clientX - touchClone.offsetWidth / 2) + 'px';
+      // Trouver la ligne sous le doigt
+      touchClone.style.display = 'none';
+      const el = document.elementFromPoint(t.clientX, t.clientY);
+      touchClone.style.display = '';
+      const overRow = el ? el.closest('.histo-row') : null;
+      if (overRow && overRow !== touchSrc) {
+        list.querySelectorAll('.histo-row').forEach(r => r.classList.remove('drag-over'));
+        overRow.classList.add('drag-over');
+        lastOver = overRow;
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    handle.addEventListener('touchend', e => {
+      if (!touchSrc) return;
+      if (touchClone) { touchClone.remove(); touchClone = null; }
+      touchSrc.classList.remove('dragging');
+      if (lastOver) {
+        lastOver.classList.remove('drag-over');
+        const rows = [...list.querySelectorAll('.histo-row')];
+        const srcIdx = rows.indexOf(touchSrc);
+        const dstIdx = rows.indexOf(lastOver);
+        if (srcIdx < dstIdx) lastOver.after(touchSrc);
+        else lastOver.before(touchSrc);
+        lastOver = null;
+      }
+      updateOrderFromDOM(list);
+      touchSrc = null;
+      e.preventDefault();
+    }, { passive: false });
+  });
+}
+
+function updateOrderFromDOM(list) {
+  histoOrder = [...list.querySelectorAll('.histo-row')].map(r => r.dataset.id);
+  saveOrder();
 }
 
 document.getElementById('btnClearHisto').addEventListener('click', async () => {
@@ -694,6 +816,7 @@ document.addEventListener('touchend', e => {
 }, { passive: false });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
+loadOrder();
 startListeners();
 validateForm();
 </script>
