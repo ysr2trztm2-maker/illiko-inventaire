@@ -592,8 +592,8 @@ btnSaveH.addEventListener('click', async () => {
   setSyncing();
   try {
     const ts = firebase.firestore.FieldValue.serverTimestamp();
-    await histoCol.add({ nom: j.nom, poids: p, qte, ts });
-    await jeuxCol.doc(id).update({ dernierePesee: ts, derniereQte: qte });
+    // set() avec l'ID du jeu comme clé → un seul enregistrement par jeu
+    await histoCol.doc(id).set({ nom: j.nom, poids: p, qte, ts });
     toast('✓ ' + qte + ' tickets enregistrés');
     ctrlPoids.value = ''; updateResult();
   } catch(e) { setSyncErr(); toast('Erreur', true); }
