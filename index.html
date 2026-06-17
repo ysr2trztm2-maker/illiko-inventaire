@@ -369,10 +369,12 @@ let jeux      = [];   // [{id (firestoreId), nom, poidsCarnet, nbTickets}]
 let histo     = [];
 let histoOrder = [];  // tableau d'IDs dans l'ordre choisi par l'utilisateur
 let editingId = null;
-const LS_ORDER = 'illiko_histo_order_v1';
 
-function loadOrder()  { try { histoOrder = JSON.parse(localStorage.getItem(LS_ORDER)) || []; } catch { histoOrder = []; } }
-function saveOrder()  { localStorage.setItem(LS_ORDER, JSON.stringify(histoOrder)); }
+async function saveOrder() {
+  try {
+    await db.collection('config').doc('histoOrder').set({ order: histoOrder });
+  } catch(e) { console.warn('saveOrder:', e); }
+}
 
 function getSortedHisto() {
   // Trier histo selon histoOrder, les nouveaux (pas encore dans order) vont à la fin
@@ -421,8 +423,17 @@ function startListeners() {
     toast('⚠️ Erreur de connexion', true);
   });
 
-  histoCol.orderBy('ts', 'desc').limit(50).onSnapshot(snap => {
+  histoCol.onSnapshot(snap => {
     histo = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderHisto();
+  });
+
+  // Ordre partagé en temps réel
+  db.collection('config').doc('histoOrder').onSnapshot(snap => {
+    if (snap.exists) {
+      const data = snap.data();
+      if (data && data.order) histoOrder = data.order;
+    }
     renderHisto();
   });
 }
@@ -816,7 +827,6 @@ document.addEventListener('touchend', e => {
 }, { passive: false });
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-loadOrder();
 startListeners();
 validateForm();
 </script>
