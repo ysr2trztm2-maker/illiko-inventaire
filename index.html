@@ -131,8 +131,8 @@
         <label>Poids pesé (g)</label>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="number" id="ctrl-poids" placeholder="Saisir le poids…" inputmode="decimal" step="0.01" min="0" disabled style="flex:1" />
-          <label id="btn-camera" style="width:48px;height:48px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent">
-            📷<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" />
+          <label id="btn-camera" style="width:48px;height:48px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;pointer-events:auto;opacity:1">
+            📷<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;pointer-events:auto" />
           </label>
         </div>
         <div id="camera-status" style="font-size:12px;color:var(--muted);margin-top:5px;display:none"></div>
@@ -621,8 +621,12 @@ document.getElementById('camera-input').addEventListener('change', function(e) {
       var txt = data.content && data.content[0] ? data.content[0].text.trim() : '';
       var val = parseFloat(txt.replace(',', '.'));
       if (!isNaN(val) && val > 0) {
-        document.getElementById('ctrl-poids').value = val;
+        var poidsInput = document.getElementById('ctrl-poids');
+        poidsInput.disabled = false;
+        poidsInput.value = val;
         updateResult();
+        // Re-désactiver si pas de jeu sélectionné
+        if (!ctrlSel.value) poidsInput.disabled = true;
         status.style.color = 'var(--ok)';
         status.textContent = '✓ Poids lu : ' + val + ' g';
         setTimeout(function(){ status.style.display='none'; }, 2000);
