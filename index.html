@@ -395,6 +395,11 @@ btnSaveH.addEventListener('click', function() {
   saveHisto(); renderControle();
   toast(qte + ' tickets enregistres');
   ctrlPoids.value = ''; updateResult();
+  // Rediriger vers Controle
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelector('[data-tab="controle"]').classList.add('active');
+  document.getElementById('panel-controle').classList.add('active');
 });
 
 document.getElementById('btn-reset-ctrl').addEventListener('click', function(){
