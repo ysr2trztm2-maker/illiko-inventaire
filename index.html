@@ -84,6 +84,14 @@
     .ctrl-qte{font-size:22px;font-weight:800;color:var(--muted)}
     .ctrl-qte.has{color:var(--ok)}
     .ctrl-date{font-size:11px;color:var(--muted);margin-top:1px}
+    .etalon-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+    .etalon-row input{flex:1}
+    .etalon-del{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 6px;border-radius:6px;-webkit-tap-highlight-color:transparent;flex-shrink:0}
+    .etalon-del:active{color:var(--danger)}
+    .etalon-result{background:var(--bg);border:1.5px solid var(--ok);border-radius:10px;padding:10px 13px;margin-top:8px;display:none}
+    .etalon-result.on{display:block}
+    .etalon-moy{font-size:18px;font-weight:800;color:var(--ok)}
+    .etalon-detail{font-size:11px;color:var(--muted);margin-top:2px}
     #toast{position:fixed;bottom:calc(18px + var(--safe-bot));left:50%;transform:translateX(-50%) translateY(14px);background:var(--ok);color:#fff;font-size:14px;font-weight:600;padding:10px 18px;border-radius:28px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;z-index:999}
     #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
     #toast.err{background:var(--danger)}
@@ -156,18 +164,21 @@
         <label>Nom du jeu</label>
         <input type="text" id="db-nom" placeholder="ex : Cash Extreme" autocomplete="off" autocorrect="off" spellcheck="false" />
       </div>
-      <div class="row-2">
-        <div class="field">
-          <label>Poids carnet (g)</label>
-          <input type="number" id="db-carnet" placeholder="ex : 126" inputmode="decimal" step="0.01" min="0.01" />
-        </div>
-        <div class="field">
-          <label>Tickets / carnet</label>
-          <input type="number" id="db-nb" placeholder="ex : 36" inputmode="numeric" step="1" min="1" />
+      <div class="field">
+        <label>Tickets / carnet</label>
+        <input type="number" id="db-nb" placeholder="ex : 36" inputmode="numeric" step="1" min="1" />
+      </div>
+      <div class="field">
+        <label>Pesées d'étalonnage (poids carnet neuf en g)</label>
+        <div id="etalon-rows"></div>
+        <button type="button" class="btn-outline" style="margin-top:6px;padding:9px;font-size:13px" onclick="addEtalonRow()">+ Ajouter une pesée</button>
+        <div class="etalon-result" id="etalon-result">
+          <div class="etalon-moy" id="etalon-moy">—</div>
+          <div class="etalon-detail" id="etalon-detail"></div>
         </div>
       </div>
       <div class="field" id="unit-wrap" style="display:none">
-        <label>Poids unitaire calculé</label>
+        <label>Poids unitaire moyen calculé</label>
         <div class="computed"><div class="cv" id="unit-val">—</div><div class="cl">g / ticket</div></div>
       </div>
       <button class="btn btn-primary" id="btn-save-jeu" disabled>Enregistrer le jeu</button>
@@ -228,7 +239,6 @@ document.querySelectorAll('.tab-btn').forEach(function(btn) {
 
 // ── BASE ──────────────────────────────────────────────────────────
 var dbNom    = document.getElementById('db-nom');
-var dbCarnet = document.getElementById('db-carnet');
 var dbNb     = document.getElementById('db-nb');
 var unitWrap = document.getElementById('unit-wrap');
 var unitVal  = document.getElementById('unit-val');
@@ -236,40 +246,95 @@ var btnSave  = document.getElementById('btn-save-jeu');
 var btnCancel= document.getElementById('btn-cancel');
 var formTitle= document.getElementById('form-title');
 
+function getEtalonValues() {
+  var rows = document.querySelectorAll('.etalon-input');
+  var vals = [];
+  rows.forEach(function(inp) {
+    var v = parseFloat(inp.value);
+    if (!isNaN(v) && v > 0) vals.push(v);
+  });
+  return vals;
+}
+
+function getMoyCarnet() {
+  var vals = getEtalonValues();
+  if (vals.length === 0) return 0;
+  return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+}
+
+function addEtalonRow(val) {
+  var container = document.getElementById('etalon-rows');
+  var div = document.createElement('div');
+  div.className = 'etalon-row';
+  div.innerHTML = '<input type="number" class="etalon-input" placeholder="ex : 126.0" inputmode="decimal" step="0.01" min="0.01" value="' + (val || '') + '" />' +
+    '<button type="button" class="etalon-del" onclick="removeEtalonRow(this)">✕</button>';
+  div.querySelector('.etalon-input').addEventListener('input', validateForm);
+  container.appendChild(div);
+  div.querySelector('.etalon-input').focus();
+  validateForm();
+}
+
+function removeEtalonRow(btn) {
+  btn.closest('.etalon-row').remove();
+  validateForm();
+}
+
 function validateForm() {
-  var n = dbNom.value.trim();
-  var c = parseFloat(dbCarnet.value);
-  var nb= parseInt(dbNb.value, 10);
-  var ok = n.length > 0 && c > 0 && nb >= 1 && !isNaN(c) && !isNaN(nb);
+  var n   = dbNom.value.trim();
+  var nb  = parseInt(dbNb.value, 10);
+  var vals= getEtalonValues();
+  var moy = getMoyCarnet();
+  var ok  = n.length > 0 && nb >= 1 && !isNaN(nb) && vals.length > 0;
   btnSave.disabled = !ok;
-  if (c > 0 && nb >= 1 && !isNaN(c) && !isNaN(nb)) {
-    unitVal.textContent = (c/nb).toFixed(3) + ' g';
+
+  // Afficher résultat étalonnage
+  var res = document.getElementById('etalon-result');
+  var moyEl = document.getElementById('etalon-moy');
+  var detEl = document.getElementById('etalon-detail');
+  if (vals.length > 0 && nb >= 1 && !isNaN(nb)) {
+    var unit = moy / nb;
+    moyEl.textContent = 'Moy. carnet : ' + moy.toFixed(2) + ' g → ' + unit.toFixed(3) + ' g/ticket';
+    var detail = vals.length + ' pesée' + (vals.length > 1 ? 's' : '');
+    if (vals.length > 1) {
+      var min = Math.min.apply(null, vals).toFixed(2);
+      var max = Math.max.apply(null, vals).toFixed(2);
+      detail += ' · min ' + min + ' g · max ' + max + ' g';
+    }
+    detEl.textContent = detail;
+    res.className = 'etalon-result on';
+    unitVal.textContent = unit.toFixed(3) + ' g';
     unitWrap.style.display = 'block';
   } else {
+    res.className = 'etalon-result';
     unitWrap.style.display = 'none';
   }
 }
-[dbNom, dbCarnet, dbNb].forEach(function(el){ el.addEventListener('input', validateForm); });
+[dbNom, dbNb].forEach(function(el){ el.addEventListener('input', validateForm); });
 
 btnSave.addEventListener('click', function() {
   var nom = dbNom.value.trim();
   var c   = parseFloat(dbCarnet.value);
   var nb  = parseInt(dbNb.value, 10);
-  if (!nom || isNaN(c) || isNaN(nb) || nb < 1 || c <= 0) return;
+  var moy = getMoyCarnet();
+  if (!nom || isNaN(nb) || nb < 1 || moy <= 0) return;
   if (editId !== null) {
     var idx = jeux.findIndex(function(j){ return j.id === editId; });
-    if (idx !== -1) jeux[idx] = { id: editId, nom: nom, carnet: c, nb: nb, createdAt: jeux[idx].createdAt };
+    if (idx !== -1) jeux[idx] = { id: editId, nom: nom, carnet: moy, nb: nb, createdAt: jeux[idx].createdAt, pesees: getEtalonValues() };
     toast('Modifie'); cancelEdit();
   } else {
-    jeux.push({ id: Date.now(), nom: nom, carnet: c, nb: nb, createdAt: new Date().toISOString() });
+    jeux.push({ id: Date.now(), nom: nom, carnet: moy, nb: nb, createdAt: new Date().toISOString(), pesees: getEtalonValues() });
     toast('Ajoute'); clearForm();
   }
   saveJeux(); renderDB(); refreshSelect();
 });
 
 function clearForm() {
-  dbNom.value=''; dbCarnet.value=''; dbNb.value='';
-  unitWrap.style.display='none'; validateForm(); dbNom.focus();
+  dbNom.value=''; dbNb.value='';
+  document.getElementById('etalon-rows').innerHTML = '';
+  document.getElementById('etalon-result').className = 'etalon-result';
+  unitWrap.style.display='none';
+  addEtalonRow(); // une ligne vide par défaut
+  validateForm(); dbNom.focus();
 }
 function cancelEdit() {
   editId=null; formTitle.textContent='Ajouter un jeu';
@@ -283,7 +348,10 @@ function startEdit(id) {
   var j = jeux.find(function(x){ return x.id === id; });
   if (!j) return;
   editId = id;
-  dbNom.value = j.nom; dbCarnet.value = j.carnet; dbNb.value = j.nb;
+  dbNom.value = j.nom; dbNb.value = j.nb;
+  document.getElementById('etalon-rows').innerHTML = '';
+  var pesees = j.pesees && j.pesees.length ? j.pesees : [j.carnet];
+  pesees.forEach(function(v){ addEtalonRow(v); });
   formTitle.textContent = 'Modifier'; btnSave.textContent = 'Sauvegarder';
   btnCancel.style.display = 'block';
   document.querySelectorAll('.db-item').forEach(function(el){ el.classList.remove('editing'); });
@@ -325,7 +393,7 @@ function renderDB() {
     return '<div class="db-item" id="dbi-' + j.id + '">' +
       '<div class="dbi-info">' +
         '<div class="dbi-name">' + esc(j.nom) + '</div>' +
-        '<div class="dbi-meta">' + j.nb + ' tickets · ' + u + ' g/ticket' + dateStr + '</div>' +
+        '<div class="dbi-meta">' + j.nb + ' tickets · ' + u + ' g/ticket' + (j.pesees && j.pesees.length > 1 ? ' · ' + j.pesees.length + ' pesées' : '') + dateStr + '</div>' +
       '</div>' +
       '<div class="dbi-actions">' +
         '<button class="btn-icon" onclick="startEdit(' + j.id + ')">✏️</button>' +
@@ -514,6 +582,7 @@ function importData(e) {
 
 // Boot
 loadData();
+addEtalonRow();
 renderDB();
 renderControle();
 refreshSelect();
