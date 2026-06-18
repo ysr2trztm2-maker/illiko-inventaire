@@ -521,16 +521,8 @@ function toast(msg, err) {
   clearTimeout(_tt); _tt = setTimeout(function(){ toastEl.className=''; }, 2200);
 }
 
-// Bloquer zoom
+// Bloquer zoom pinch seulement
 document.addEventListener('gesturestart', function(e){ e.preventDefault(); }, { passive: false });
-document.addEventListener('gesturechange', function(e){ e.preventDefault(); }, { passive: false });
-document.addEventListener('gestureend', function(e){ e.preventDefault(); }, { passive: false });
-var lastTap = 0;
-document.addEventListener('touchend', function(e){
-  var now = Date.now();
-  if (now - lastTap < 300) e.preventDefault();
-  lastTap = now;
-}, { passive: false });
 
 // Aller vers saisie avec un jeu présélectionné
 function goToSaisie(id) {
