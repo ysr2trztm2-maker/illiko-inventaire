@@ -313,7 +313,6 @@ function validateForm() {
 
 btnSave.addEventListener('click', function() {
   var nom = dbNom.value.trim();
-  var c   = parseFloat(dbCarnet.value);
   var nb  = parseInt(dbNb.value, 10);
   var moy = getMoyCarnet();
   if (!nom || isNaN(nb) || nb < 1 || moy <= 0) return;
