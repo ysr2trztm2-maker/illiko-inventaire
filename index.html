@@ -74,7 +74,8 @@
     .empty .ei{font-size:30px;margin-bottom:8px}
     .sep{height:1px;background:var(--border);margin:14px 0}
     /* Controle rows */
-    .ctrl-row{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border)}
+    .ctrl-row{display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .ctrl-row:active{background:rgba(245,158,11,.07)}
     .ctrl-row:last-child{border-bottom:none}
     .ctrl-info{flex:1;min-width:0}
     .ctrl-nom{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -420,7 +421,7 @@ function renderControle() {
       dateStr = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}) + ' ' +
                 d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     }
-    return '<div class="ctrl-row">' +
+    return '<div class="ctrl-row" onclick="goToSaisie(' + j.id + ')">' +
       '<div class="ctrl-info">' +
         '<div class="ctrl-nom">' + esc(j.nom) + '</div>' +
         '<div class="ctrl-meta">' + unitaire(j).toFixed(3) + ' g/ticket</div>' +
@@ -452,6 +453,22 @@ document.addEventListener('touchend', function(e){
   if (now - lastTap < 300) e.preventDefault();
   lastTap = now;
 }, { passive: false });
+
+// Aller vers saisie avec un jeu présélectionné
+function goToSaisie(id) {
+  // Switcher sur l'onglet Saisie
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelector('[data-tab="saisie"]').classList.add('active');
+  document.getElementById('panel-saisie').classList.add('active');
+  // Sélectionner le jeu
+  ctrlSel.value = String(id);
+  ctrlPoids.value = '';
+  onSelect();
+  updateResult();
+  // Focus sur le champ poids
+  setTimeout(function(){ ctrlPoids.focus(); }, 100);
+}
 
 // Export / Import
 function exportData() {
